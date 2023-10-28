@@ -20,6 +20,7 @@ module admin::Invest {
     const E_INSUFFICIENT_BALANCE: u64 = 404;
     const E_PROJECT_DOESNT_EXIST:u64 = 405;
     const E_ALREADY_SUBSCRIBED:u64 = 406;
+    const DEFAULT_APY:u64 = 1000;//10% APY per year
 
     struct ListedProject has key {
         projects: Table<u64, Project>,
@@ -180,7 +181,48 @@ module admin::Invest {
         assert!(project_ref.is_paid==false, E_ALREADY_SUBSCRIBED);
         let new_totalrevenue =  project_ref.total_revenue + 10;
         project_ref.is_paid=true;
-
     }
 
+    public entry fun investIn_Project(investor: &signer, project_id: u64, amount:u64) acquires ListedProject {
+        assert_is_initialized(@admin);
+
+        let investor_addr = signer::address_of(investor);
+        let caller_acc_balance:u64 = coin::balanced<AptosCoin>(investor_addr);
+
+        assert!(table::contains(&listed_projects_ref.projects, project_id), E_PROJECT_DOESNT_EXIST);
+        let projects_list =  &mut listed_projects_ref.projects;
+        let listed_Project_ref = borrow_global_mut<ListedProject>(@admin);
+
+        let project_ref = table::borrow_mut(&mut listed_projects_ref.projects, project_id);
+
+        assert!(caller_acc_balance >= project_ref.required_capital, E_INSUFFICIENT_BALANCE);
+
+        let resource_signer = account::create_signer_with_capability(&listed_projects_ref.signer_cap);
+
+        let resource_account_address = signer::address_of(&resource_signer);
+
+        aptos_account::transfer(investor, resource_account_address, amount);
+        let new_totalfundraised =  project_ref.total_fundraised + amount;     
+    }
+
+    public entry fun distribute_investedamount(administrator: &signer, addr: address) acquires ListedProject {
+        let owner = signer::address_of(administrator);
+        
+        only_owner(owner);
+
+        let resource_signer = account::create_signer_with_capability(&listed_projects_ref.signer_cap);
+
+        let resource_account_address = signer::address_of(&resource_signer);
+
+        let totalrevenue_balance = borrow_global_mut<ListedProject>(resource_account_address);
+
+        let totalrevenue_amount = totalrevenue_balance.total_revenue;
+        assert!(totalrevenue_amount >= totalrevenue_balance, E_INSUFFICIENT_BALANCE);
+
+        let apy = DEFAULT_APY;
+
+        let interest_amount = (totalrevenue_amount * apy) / (10000);
+
+        aptos_account::transfer(resource_account_address, addr, interest_amount);
+    }
 }
