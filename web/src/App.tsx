@@ -4,6 +4,7 @@ import {
   BrowserRouter,
   Routes,
   Link,
+  Router,
   Route,
   RouteProps,
 } from "react-router-dom";
@@ -15,6 +16,9 @@ import { Provider, Network } from "aptos";
 import "@aptos-labs/wallet-adapter-ant-design/dist/index.css";
 import Admin from "./components/Admin";
 import User from "./components/User";
+import Navbar from "./components/Navbar";
+import Register from "./components/Register";
+import LandingPage from "./components/LandingPage";
 import "./App.css";
 
 type Task = {
@@ -27,35 +31,24 @@ type Task = {
 const App: React.FC = () => {
   const provider = new Provider(Network.DEVNET);
   const { account, signAndSubmitTransaction } = useWallet();
-  const [accountHasList, setAccountHasList] = useState<boolean>(false);
+  const [accountHasList, setAccountHasList] = useState<boolean>(true);
   const [transactionInProgress, setTransactionInProgress] =
     useState<boolean>(false);
+  const [isAdmin, setIsAdmin] = useState<boolean>(false);
 
   return (
     <>
-      <Layout>
-        <Row align="middle">
-          <Col span={10} offset={2}>
-            <h1>APTube</h1>
-          </Col>
+      <BrowserRouter>
+        <Navbar />
+        <Routes>
+          <Route path="/" Component={LandingPage} />
+          <Route path="/admin" Component={Admin} />
+          <Route path="/user" Component={User} />
+          <Route path="/register" Component={Register} />
+        </Routes>
+      </BrowserRouter>
 
-          <Col span={12} style={{ textAlign: "center", paddingRight: "200px" }}>
-            <WalletSelector />
-          </Col>
-          <Col span={120} style={{ textAlign: "right", paddingRight: "20px" }}>
-            <BrowserRouter>
-              <Link to="/admin">
-                <button className="button">Admin</button>
-              </Link>
-              <Routes>
-                <Route path="/admin" element={<Admin />} />
-              </Routes>
-            </BrowserRouter>
-          </Col>
-        </Row>
-      </Layout>
-
-      <User />
+      {/* <User /> */}
     </>
   );
 };

@@ -36,7 +36,8 @@ iframe {
 /* Basic Button Style */
 .button {
   display: inline-block;
-  padding: 10px 20px;
+  margin: 5px;
+  padding: 10px 30px;
   font-size: 16px;
   font-weight: bold;
   text-align: center;
@@ -54,3 +55,95 @@ iframe {
   color: #fff; /* Text color on hover */
   border-color: #3498db; /* Border color on hover */
 }
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: bold;
+}
+
+.form-group input[type="text"],
+.form-group textarea {
+  width: 100%;
+  padding: 10px;
+  font-size: 16px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+}
+
+.form-group textarea {
+  resize: vertical; /* Allow vertical resizing of textarea */
+}
+
+.form-group button {
+  background-color: #3498db;
+  color: #fff;
+  border: none;
+  padding: 10px 20px;
+  font-size: 18px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.form-group button:hover {
+  background-color: #2980b9; /* Darker shade of the primary color on hover */
+}
+
+/* Common Heading Styles */
+h1, h2, h3, h4, h5, h6 {
+  margin-bottom: 10px; /* Adds space at the bottom of the heading */
+  font-weight: bold; /* Makes the text bold */
+}
+
+/* Specific Heading Styles */
+h1 {
+  font-size: 36px; /* Adjust font size for h1 */
+  color: #333; /* Text color for h1 */
+}
+
+h2 {
+  font-size: 30px; /* Adjust font size for h2 */
+  color: #555; /* Text color for h2 */
+}
+
+h3 {
+  font-size: 24px; /* Adjust font size for h3 */
+  color: #777; /* Text color for h3 */
+}
+
+h4 {
+  font-size: 20px; /* Adjust font size for h4 */
+  color: #999; /* Text color for h4 */
+}
+
+h5 {
+  font-size: 18px; /* Adjust font size for h5 */
+  color: #aaa; /* Text color for h5 */
+}
+
+h6 {
+  font-size: 16px; /* Adjust font size for h6 */
+  color: #bbb; /* Text color for h6 */
+}
+
+
+/* Paragraph Styles */
+p {
+  margin-bottom: 20px; /* Adds space at the bottom of paragraphs */
+  font-size: 16px; /* Font size for paragraphs */
+  line-height: 1.5; /* Line height for paragraphs for better readability */
+  color: #333; /* Text color for paragraphs */
+}
+
+/* Paragraph with Specific Class */
+.paragraph-highlight {
+  background-color: #f5f5f5; /* Background color for highlighted paragraphs */
+  padding: 10px; /* Adds padding inside highlighted paragraphs */
+  border: 1px solid #ccc; /* Border around highlighted paragraphs */
+}
+

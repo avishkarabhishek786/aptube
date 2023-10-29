@@ -193,6 +193,16 @@ const User: React.FC = () => {
       title: "Video 2",
       url: "https://www.youtube.com/embed/video2",
     },
+    {
+      id: 3,
+      title: "Video 3",
+      url: "https://www.youtube.com/embed/video3",
+    },
+    {
+      id: 4,
+      title: "Video 4",
+      url: "https://www.youtube.com/embed/video4",
+    },
     // Add more video objects as needed
   ];
 
