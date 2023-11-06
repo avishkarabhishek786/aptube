@@ -25,6 +25,10 @@ module admin::Invest {
     const E_LOCKIN_ACTIVE:u64 = 408;
     const E_LOCKIN_OVER:u64 = 409;
     const E_LOCKIN_INVAID:u64 = 410;
+    const E_NOT_WITHDRAWAL_PERIOD:u64 = 411;
+    const E_NOT_INVESTOR:u64 = 412;
+    const E_INVALID_WITHDRAWAL_AMOUNT:u64 = 413;
+    const E_ALREADY_WITHDRAWN:u64 = 414;
     const DEFAULT_APY:u64 = 1000;//10% APY per year
 
     struct ListedProject has key {
@@ -40,44 +44,21 @@ module admin::Invest {
         link: String,
         subscription_price: u64,
         total_revenue: u64,   // revenue earned by subscription till now
-        locktime: u64, // remaining period after which investor can pull back
+        investment_locktime: u64, // period in which investment can be made into a project ~ 15 days
+        revenue_locktime: u64, // period upto which revenue will be locked and cannot be withdrawn ~ 6 months after project is live 
+        withdrawal_locktime: u64, // period when investors can withdraw their earnings ~ 15 days
         total_fundraised: u64, // investors invested money till now     
-        required_capital: u64, // fixed amount to invest   
+        capital_required: u64, // fixed amount to invest   
         is_paid: bool,
         is_blocked: bool,
         investors: SimpleMap<address, Investor>;
     }
-
-    // struct productDetails has store, drop {
-    //     content_id: u64,
-    //     creator_address: address,
-    //     total_revenue: u64,   // revenue earned by subscription till now
-    //     remaining_locktime: investorsLockingPeriod, // remaining period after which investor can pull back
-    //     total_fundraised: u64, // investors invested money till now     
-    //     required_capital: u64 // fixed amount to invest    
-    // }
-    
-
-    // user Subscription time
-    // struct UsersDuration has store {
-    //     start_at: u64,
-    //     duration: u64,
-    // }
 
     // investor 
     struct Investor has store, drop {
         invested_amount: u64,
         withdrawn: bool,
     }
-
-    // // user 
-    // struct PayToSeeContent has store, key  {
-    //     user_address: address,
-    //     content_id: u64,
-    //     paid_time: UsersDuration,
-    //     paid_Amount: u64,
-    //     subscription_endTime: u64
-    // }
 
     public fun only_owner(addr:address) {
         assert!(addr==@admin, E_CALLER_NOT_OWNER);
@@ -91,15 +72,20 @@ module admin::Invest {
         assert!(!exists<ListedProject>(store_addr), E_MODULE_ALREADY_INITIALIZED);
     }
 
-    fun assert_in_lockin_period(t:u64) {
+    fun assert_in_investment_locktime(t:u64) {
         let current_time = timestamp::now_seconds();
         assert!(t < current_time, E_LOCKIN_ACTIVE);
     } 
 
-    fun assert_not_in_lockin_period(t:u64) {
+    fun assert_not_in_investment_lockin_period(t:u64) {
         let current_time = timestamp::now_seconds();
         assert!(t > current_time, E_LOCKIN_OVER);
     }  
+
+    fun assert_in_withdrwal_locktime(t:u64) {
+        let current_time = timestamp::now_seconds();
+        assert!(t < current_time, E_NOT_WITHDRAWAL_PERIOD);
+    } 
 
     public entry fun initialize(administrator: &signer) {
 
@@ -158,9 +144,11 @@ module admin::Invest {
             link: project_detail.link,
             subscription_price: project_detail.subscription_price,
             total_revenue: 0, 
-            locktime: project_detail.locktime, 
-            total_fundraised: project_detail.total_fundraised, 
-            required_capital: project_detail.required_capital,  
+            investment_locktime: project_detail.investment_locktime, 
+            revenue_locktime: project_detail.investment_locktime, 
+            withdrawal_locktime: project_detail.investment_locktime, 
+            total_fundraised: 0, 
+            capital_required: project_detail.capital_required,  
             is_paid: project_detail.is_paid,
             is_blocked: false,
             investors: simple_map::create(),
@@ -183,7 +171,7 @@ module admin::Invest {
         
         let subscriber_addr = signer::address_of(subscriber);
         let caller_acc_balance:u64 = coin::balance<AptosCoin>(subscriber_addr);
-        assert!(caller_acc_balance >= 10, E_INSUFFICIENT_BALANCE);
+        assert!(caller_acc_balance >= amount, E_INSUFFICIENT_BALANCE);
 
         let listed_projects_ref = borrow_global_mut<ListedProject>(@admin);
 
@@ -207,7 +195,7 @@ module admin::Invest {
         assert!(table::contains(&listed_projects_ref.projects, project_id), E_PROJECT_DOESNT_EXIST);
 
         assert!(project_ref.is_paid==false, E_ALREADY_SUBSCRIBED);
-        let new_totalrevenue =  project_ref.total_revenue + 10;
+        project_ref.total_revenue + amount;
         project_ref.is_paid=true;
     }
 
@@ -224,56 +212,79 @@ module admin::Invest {
         
         let project_ref = table::borrow_mut(&mut listed_projects_ref.projects, project_id);
 
-        assert_in_lockin_period(project_ref.locktime);
+        assert_in_investment_locktime(project_ref.investment_locktime);
 
-        assert!(caller_acc_balance >= project_ref.required_capital, E_INSUFFICIENT_BALANCE);
+        assert!(caller_acc_balance >= project_ref.capital_required, E_INSUFFICIENT_BALANCE);
 
         let resource_signer = account::create_signer_with_capability(&listed_projects_ref.signer_cap);
 
         let resource_account_address = signer::address_of(&resource_signer);
 
-        //let investor_total_investment_in_project = 0;
-        
-        //if(exists<Qna>(store_addr)) {
-           let investor_total_investment_in_project = simple_map::borrow_mut(&mut project_ref.investors, investor_addr);
-        //}
-
         aptos_account::transfer(investor, resource_account_address, amount);
-        project_ref.total_fundraised + amount;    
+        project_ref.total_fundraised + amount;   
         
-        let investot_struct = Investor {
-            address: investor_addr,
-            invested_amount: amount + investor_total_investment_in_project,
-            withdrawn: false,
-        };
+        if(simple_map::contains_key(&project_ref.investors, investor_addr)) {
+           let investor_total_investment_in_project_ref = simple_map::borrow_mut(&mut project_ref.investors, investor_addr);
+           investor_total_investment_in_project_ref.invested_amount + amount;
+        } else {
 
-        simple_map::add(&mut project_ref.investors, investor_addr, investot_struct);
+            let investot_struct = Investor {
+                address: investor_addr,
+                invested_amount: amount,
+                withdrawn: false,
+            };
+
+            simple_map::add(&mut project_ref.investors, investor_addr, investot_struct);
+
+        } 
+        
+        
     }
 
-    // public entry fun withdraw_invested_amount(administrator: &signer, addr: address) acquires ListedProject {
-    //     let owner = signer::address_of(administrator);
+    public entry fun withdraw_invested_amount(caller: &signer, project_id: u64) acquires ListedProject {
         
-    //     only_owner(owner);
+        assert_is_initialized(@admin);
 
-    //     assert_is_initialized(@admin);
+        let investor_addr = signer::address_of(caller);
+        
+        let project_ref = table::borrow_mut(&mut listed_projects_ref.projects, project_id);
+        
+        // assert is investor
+        assert!(simple_map::contains_key(&project_ref.investors, investor_addr), E_NOT_INVESTOR);
 
-    //     //assert_not_in_lockin_period();
+        // assert in withdrawal period 
+        assert_in_withdrwal_locktime(project_ref.withdrawal_locktime);
 
-    //     let listed_projects_ref = borrow_global_mut<ListedProject>(@admin);
+        let listed_projects_ref = borrow_global_mut<ListedProject>(@admin);
 
-    //     let resource_signer = account::create_signer_with_capability(&listed_projects_ref.signer_cap);
+        let resource_signer = account::create_signer_with_capability(&listed_projects_ref.signer_cap);
 
-    //     let resource_account_address = signer::address_of(&resource_signer);
+        let resource_account_address = signer::address_of(&resource_signer);
 
-    //     let totalrevenue_balance = borrow_global_mut<ListedProject>(resource_account_address);
+        // get balanceOf resource_account_address. that will be total revenue
+        let resource_account_address_balance = coin::balance<AptosCoin>(resource_account_address);
 
-    //     let totalrevenue_amount = totalrevenue_balance.total_revenue;
-    //     assert!(totalrevenue_amount >= totalrevenue_balance, E_INSUFFICIENT_BALANCE);
+        // get investors investment amount
+        let investor_ref = simple_map::borrow_mut(&mut project_ref.investors, investor_addr);
+        assert!(investor_ref.withdrawn==false, E_ALREADY_WITHDRAWN);
 
-    //     let apy = DEFAULT_APY;
+        let investor_investment = investor_ref.invested_amount;   
 
-    //     let interest_amount = (totalrevenue_amount * apy) / (10000);
+        // get total investment
+        let total_investment_raised = project_ref.total_fundraised;
 
-    //     aptos_account::transfer(resource_account_address, addr, interest_amount);
-    // }
+        // get total investment total_revenue
+        let total_revenue = project_ref.total_revenue;
+
+        // calculate his wthdrawal amount and withdraw
+        let withdrawal_amount = (investor_investment * total_revenue) / total_investment_raised;
+
+        assert!(withdrawal_amount < resource_account_address_balance, E_INVALID_WITHDRAWAL_AMOUNT);
+        
+        // transfer amount to investor
+        aptos_account::transfer(resource_account_address, investor_addr, withdrawal_amount);
+
+        investor_ref.withdrawn = true;
+        investor_ref.invested_amount = 0;
+    }
 }
