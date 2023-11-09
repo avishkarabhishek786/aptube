@@ -22,13 +22,17 @@ module admin::Invest {
     const E_PROJECT_DOESNT_EXIST:u64 = 405;
     const E_ALREADY_SUBSCRIBED:u64 = 406;
     const E_BLOCKED:u64 = 407;
-    const E_LOCKIN_ACTIVE:u64 = 408;
-    const E_LOCKIN_OVER:u64 = 409;
+    const E_INVESTMENT_PERIOD_ACTIVE:u64 = 408;
+    const E_INVESTMENT_PERIOD_OVER:u64 = 409;
     const E_LOCKIN_INVAID:u64 = 410;
     const E_NOT_WITHDRAWAL_PERIOD:u64 = 411;
-    const E_NOT_INVESTOR:u64 = 412;
-    const E_INVALID_WITHDRAWAL_AMOUNT:u64 = 413;
-    const E_ALREADY_WITHDRAWN:u64 = 414;
+    const E_INVALID_INVESTMENT_TIME:u64 = 412;
+    const E_INVALID_REVENUE_TIME:u64 = 413;
+    const E_INVALID_WITHDRAWAL_TIME:u64 = 414;
+    const E_NOT_INVESTOR:u64 = 415;
+    const E_INVALID_WITHDRAWAL_AMOUNT:u64 = 416;
+    const E_ALREADY_WITHDRAWN:u64 = 417;
+    const E_PROJECT_NOT_LIVE:u64 = 418;
     const DEFAULT_APY:u64 = 1000;//10% APY per year
 
     struct ListedProject has key {
@@ -74,17 +78,22 @@ module admin::Invest {
 
     fun assert_in_investment_locktime(t:u64) {
         let current_time = timestamp::now_seconds();
-        assert!(t < current_time, E_LOCKIN_ACTIVE);
+        assert!(t > current_time, E_INVESTMENT_PERIOD_ACTIVE);
     } 
 
-    fun assert_not_in_investment_lockin_period(t:u64) {
-        let current_time = timestamp::now_seconds();
-        assert!(t > current_time, E_LOCKIN_OVER);
-    }  
+    // fun assert_not_in_investment_lockin_period(t:u64) {
+    //     let current_time = timestamp::now_seconds();
+    //     assert!(t > current_time, E_INVESTMENT_PERIOD_OVER);
+    // }  
 
-    fun assert_in_withdrwal_locktime(t:u64) {
+    fun assert_project_is_live(t:u64) {
         let current_time = timestamp::now_seconds();
-        assert!(t < current_time, E_NOT_WITHDRAWAL_PERIOD);
+        assert!(current_time > t, E_PROJECT_NOT_LIVE); // Current time has passed investment period
+    }
+
+    fun assert_in_withdrawal_locktime(withdraw_time:u64, revenue_lock_time:u64) {
+        let current_time = timestamp::now_seconds();
+        assert!((current_time < withdraw_time) && (current_time > revenue_lock_time), E_NOT_WITHDRAWAL_PERIOD);
     } 
 
     public entry fun initialize(administrator: &signer) {
@@ -136,7 +145,9 @@ module admin::Invest {
         let counter = listed_projects_ref.projects_counter + 1;
 
         let current_time = timestamp::now_seconds();
-        assert!(project_detail.locktime > current_time, E_LOCKIN_INVAID);
+        assert!(project_detail.investment_locktime > current_time, E_INVALID_INVESTMENT_TIME);
+        assert!(project_detail.revenue_locktime > project_detail.investment_locktime, E_INVALID_REVENUE_TIME);
+        assert!(project_detail.withdrawal_locktime > project_detail.revenue_locktime, E_INVALID_WITHDRAWAL_TIME);
         
         let new_project = Project {
             id: counter,
@@ -175,24 +186,33 @@ module admin::Invest {
 
         let listed_projects_ref = borrow_global_mut<ListedProject>(@admin);
 
+        assert!(table::contains(&listed_projects_ref.projects, project_id), E_PROJECT_DOESNT_EXIST);
+
         let projects_list =  &mut listed_projects_ref.projects;
 
         let project_ref = table::borrow_mut(&mut listed_projects_ref.projects, project_id);
 
         assert!(project_ref.is_blocked==false, E_BLOCKED);
 
-        assert_not_in_lockin_period(project_ref.locktime);
+        assert_project_is_live(project_ref.investment_locktime); // assert investment period is over
 
-        let resource_signer = account::create_signer_with_capability(&listed_projects_ref.signer_cap);
+        let current_time = timestamp::now_seconds();
 
-        let resource_account_address = signer::address_of(&resource_signer);
+        // If withdrawal time is over all the revenue will go to the platform else in the resource account
+        if(current_time>project_ref.withdrawal_locktime) {
 
-        // Payment for subscription. Payment collects into resource account
-        aptos_account::transfer(subscriber,resource_account_address, amount);
+            aptos_account::transfer(subscriber, @admin, amount);
+
+        } else {
+            let resource_signer = account::create_signer_with_capability(&listed_projects_ref.signer_cap);
+
+            let resource_account_address = signer::address_of(&resource_signer);
+
+            // Payment for subscription. Payment collects into resource account
+            aptos_account::transfer(subscriber, resource_account_address, amount);
+        }
 
         // Update subscription data for the subscriber
-
-        assert!(table::contains(&listed_projects_ref.projects, project_id), E_PROJECT_DOESNT_EXIST);
 
         assert!(project_ref.is_paid==false, E_ALREADY_SUBSCRIBED);
         project_ref.total_revenue + amount;
@@ -253,7 +273,7 @@ module admin::Invest {
         assert!(simple_map::contains_key(&project_ref.investors, investor_addr), E_NOT_INVESTOR);
 
         // assert in withdrawal period 
-        assert_in_withdrwal_locktime(project_ref.withdrawal_locktime);
+        assert_in_withdrawal_locktime(project_ref.withdrawal_locktime, project_ref.revenue_locktime);
 
         let listed_projects_ref = borrow_global_mut<ListedProject>(@admin);
 
@@ -287,4 +307,27 @@ module admin::Invest {
         investor_ref.withdrawn = true;
         investor_ref.invested_amount = 0;
     }
+
+    // public entry fun platform_revenue_withdrawal(caller: &signer, withdrawal_amount: u64) acquires ListedProject {
+
+    //     // get address of caller
+    //     let owner = signer::address_of(administrator);
+        
+    //     // assert caller is owner
+    //     only_owner(owner);
+
+    //     assert_is_initialized(owner);
+
+    //     let listed_projects_ref = borrow_global_mut<ListedProject>(@admin);
+
+    //     let resource_signer = account::create_signer_with_capability(&listed_projects_ref.signer_cap);
+
+    //     let resource_account_address = signer::address_of(&resource_signer);
+
+    //     aptos_account::transfer(resource_account_address, owner, withdrawal_amount);
+
+
+    // }
+
+
 }
