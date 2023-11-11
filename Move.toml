@@ -1,10 +1,11 @@
 [package]
-name = "aptube"
+name = "contracts"
 version = "1.0.0"
 authors = []
 
 [addresses]
-admin = "0xCAFE"
+admin="0x4b0381266aca54cc882efdd14621a9e70dd4d34ebb21977ffd336472e90fd6ba"
+aptos_framework = "0x1"
 
 [dev-addresses]
 
